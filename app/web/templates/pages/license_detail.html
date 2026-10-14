@@ -1,0 +1,182 @@
+{% extends "layouts/app.html" %}
+{% from "partials/ui.html" import icon, glyph, status_badge, pips, expiry, when, csrf %}
+{% block title %}{{ lic.customer }}{% endblock %}
+
+{% block content %}
+{% set writable = can("licenses:write") %}
+
+<nav aria-label="Ruta" class="text-sm">
+  <a class="text-link hover:underline" href="/admin/licenses">Licencias</a><span class="mx-1.5 text-faint" aria-hidden="true">/</span><span class="text-muted">{{ lic.customer }}</span>
+</nav>
+
+<div class="mt-3 flex flex-wrap items-start justify-between gap-4">
+  <div class="min-w-0">
+    <h1 class="break-words text-[1.75rem] font-bold leading-tight tracking-tight sm:text-3xl">{{ lic.customer }}</h1>
+    <p class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">{{ status_badge(status) }}<span class="mono text-sm text-muted">{{ lic.id }}</span></p>
+  </div>
+  {% if writable %}
+  <form method="post" action="/admin/licenses/{{ lic.id }}/{{ 'unrevoke' if lic.revoked else 'revoke' }}"
+        {% if not lic.revoked %}data-confirm="¿Revocar la licencia de {{ lic.customer }}? Dejará de funcionar en cuanto el cliente la valide de nuevo (máximo {{ ttl_days }} días)."{% endif %}>
+    {{ csrf(csrf_token) }}
+    {% if lic.revoked %}
+    <button class="btn btn-secondary" type="submit">{{ icon("undo", 18) }}Reactivar licencia</button>
+    {% else %}
+    <button class="btn btn-danger" type="submit">{{ icon("ban", 18) }}Revocar licencia</button>
+    {% endif %}
+  </form>
+  {% endif %}
+</div>
+
+<section class="panel relative isolate mt-6 overflow-hidden" aria-label="Datos de la licencia">
+  <div class="guilloche absolute inset-x-0 top-0 -z-10 h-28 text-brand opacity-[.12]" aria-hidden="true"></div>
+  <dl class="grid gap-x-8 gap-y-5 p-5 sm:grid-cols-2 sm:p-6 lg:grid-cols-4">
+    <div><dt class="text-sm text-muted">Producto</dt><dd class="mt-0.5 font-semibold">{{ lic.product }}</dd></div>
+    <div><dt class="text-sm text-muted">Plan</dt><dd class="mt-0.5 font-semibold">{{ lic.plan | plan_label }}</dd></div>
+    <div><dt class="text-sm text-muted">Vence</dt><dd class="mt-0.5 font-semibold">{{ expiry(lic.expires_at) }}</dd></div>
+    <div><dt class="text-sm text-muted">Instalaciones</dt><dd class="mt-0.5 font-semibold">{{ pips(active, lic.max_activations) }}</dd></div>
+    <div><dt class="text-sm text-muted">Correo</dt><dd class="mt-0.5 break-all">{{ lic.email or "—" }}</dd></div>
+    <div><dt class="text-sm text-muted">Creada</dt><dd class="mt-0.5">{{ when(lic.created_at) }}</dd></div>
+    <div class="sm:col-span-2">
+      <dt class="text-sm text-muted">Funciones incluidas</dt>
+      <dd class="mt-1 flex flex-wrap gap-1.5">{% for f in lic.features %}<span class="chip">{{ f }}</span>{% else %}<span class="text-muted">Ninguna</span>{% endfor %}</dd>
+    </div>
+  </dl>
+</section>
+
+<div class="mt-8 grid gap-8 lg:grid-cols-[3fr_2fr]">
+  <div class="space-y-8">
+    <section aria-labelledby="h-inst">
+      <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <h2 id="h-inst" class="text-xl font-bold">Instalaciones</h2>
+        {% if writable and active > 1 %}
+        <form method="post" action="/admin/licenses/{{ lic.id }}/release" data-confirm="¿Liberar las {{ active }} instalaciones activas? El cliente tendrá que activarlas de nuevo.">
+          {{ csrf(csrf_token) }}<button class="btn btn-secondary btn-sm" type="submit">Liberar todas</button>
+        </form>
+        {% endif %}
+      </div>
+      <div class="panel overflow-hidden">
+        {% if activations %}
+        <div class="table-wrap">
+          <table class="tbl">
+            <thead><tr><th scope="col">Equipo</th><th scope="col" class="hidden sm:table-cell">IP</th><th scope="col">Última conexión</th><th scope="col">Estado</th>{% if writable %}<th scope="col"><span class="sr-only">Acciones</span></th>{% endif %}</tr></thead>
+            <tbody>
+              {% for a in activations %}
+              <tr class="{{ '' if a.active else 'text-muted' }}">
+                <td>
+                  <span class="font-semibold">{{ a.hostname or "Sin nombre" }}</span>
+                  <span class="mono block text-xs text-muted" title="{{ a.fingerprint }}">{{ a.fingerprint | fp_short }}</span>
+                </td>
+                <td class="mono hidden text-sm sm:table-cell">{{ a.last_ip or "—" }}</td>
+                <td class="text-sm">{{ when(a.last_seen) }}</td>
+                <td>{% if a.active %}<span class="badge st-active">{{ glyph("active") }}Activa</span>{% else %}<span class="badge st-expired">{{ glyph("expired") }}Liberada</span>{% endif %}</td>
+                {% if writable %}
+                <td class="text-right">
+                  {% if a.active %}
+                  <form method="post" action="/admin/licenses/{{ lic.id }}/release" data-confirm="¿Liberar esta instalación? El cliente podrá activar otro servidor.">
+                    {{ csrf(csrf_token) }}<input type="hidden" name="fingerprint" value="{{ a.fingerprint }}">
+                    <button class="btn btn-secondary btn-sm" type="submit">Liberar</button>
+                  </form>
+                  {% endif %}
+                </td>
+                {% endif %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p class="flex items-center gap-3 p-5 text-muted">{{ icon("server", 20) }}Todavía nadie ha activado esta licencia. El cliente la activa con su clave desde su servidor.</p>
+        {% endif %}
+      </div>
+    </section>
+
+    {% if can("audit:read") %}
+    <section aria-labelledby="h-hist">
+      <div class="mb-3 flex items-baseline justify-between gap-3">
+        <h2 id="h-hist" class="text-xl font-bold">Historial</h2>
+        <a class="text-sm font-semibold text-link hover:underline" href="/admin/audit?license={{ lic.id }}">Ver todo</a>
+      </div>
+      <div class="panel">
+        {% if history %}
+        <ol class="divide-y divide-line">
+          {% for e in history %}
+          {% set tone = e.event | event_tone %}
+          <li class="flex gap-3 px-4 py-3 tone-{{ tone }}">
+            <span class="mt-1.5 text-st">{{ glyph(tone) }}</span>
+            <div class="min-w-0 flex-1">
+              <p class="font-semibold">{{ e.event | event_label }}</p>
+              {% if e.detail %}<p class="break-words text-sm text-muted">{{ e.detail }}</p>{% endif %}
+              <p class="mt-0.5 flex flex-wrap gap-x-3 text-sm text-muted"><span>{{ "por " ~ e.actor if e.actor else "desde una instalación" }}</span>{{ when(e.ts) }}</p>
+            </div>
+          </li>
+          {% endfor %}
+        </ol>
+        {% else %}
+        <p class="p-5 text-muted">Sin movimientos todavía.</p>
+        {% endif %}
+      </div>
+    </section>
+    {% endif %}
+  </div>
+
+  <aside class="space-y-6" aria-label="Gestión">
+    {% if writable %}
+    {% if lic.expires_at is not none %}
+    <section class="panel" aria-labelledby="h-renovar">
+      <div class="panel-head"><h2 id="h-renovar" class="text-base font-bold">Renovar</h2></div>
+      <form method="post" action="/admin/licenses/{{ lic.id }}/extend" class="panel-body space-y-3">
+        {{ csrf(csrf_token) }}
+        <label class="label" for="days">Días a sumar</label>
+        <div class="flex gap-2">
+          <input class="field" id="days" name="days" type="number" min="1" max="3650" value="365" inputmode="numeric" required>
+          <button class="btn btn-primary" type="submit">{{ icon("refresh", 18) }}Renovar</button>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button type="button" class="btn btn-secondary btn-sm" data-fill="#days" data-value="30">30 días</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-fill="#days" data-value="90">90 días</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-fill="#days" data-value="365">1 año</button>
+        </div>
+        <p class="hint">Se suman al vencimiento actual ({{ lic.expires_at | date }}). Si ya venció, se cuentan desde hoy.</p>
+      </form>
+    </section>
+    {% endif %}
+
+    <section class="panel" aria-labelledby="h-limite">
+      <div class="panel-head"><h2 id="h-limite" class="text-base font-bold">Instalaciones permitidas</h2></div>
+      <form method="post" action="/admin/licenses/{{ lic.id }}/max" class="panel-body">
+        {{ csrf(csrf_token) }}
+        <label class="label sr-only" for="n">Instalaciones permitidas</label>
+        <div class="flex gap-2">
+          <input class="field w-28" id="n" name="n" type="number" min="1" max="1000" value="{{ lic.max_activations }}" inputmode="numeric" required>
+          <button class="btn btn-secondary" type="submit">Guardar</button>
+        </div>
+        <p class="hint">Si lo bajas por debajo de las activas, las que ya funcionan siguen; solo se impiden nuevas.</p>
+      </form>
+    </section>
+
+    <section class="panel" aria-labelledby="h-notas">
+      <div class="panel-head"><h2 id="h-notas" class="text-base font-bold">Notas internas</h2></div>
+      <form method="post" action="/admin/licenses/{{ lic.id }}/notes" class="panel-body space-y-3">
+        {{ csrf(csrf_token) }}
+        <label class="label sr-only" for="notes">Notas internas</label>
+        <textarea class="field" id="notes" name="notes" rows="4" maxlength="2000">{{ lic.notes or "" }}</textarea>
+        <button class="btn btn-secondary" type="submit">Guardar notas</button>
+      </form>
+    </section>
+    {% elif lic.notes %}
+    <section class="panel" aria-labelledby="h-notas">
+      <div class="panel-head"><h2 id="h-notas" class="text-base font-bold">Notas internas</h2></div>
+      <p class="panel-body whitespace-pre-line">{{ lic.notes }}</p>
+    </section>
+    {% endif %}
+
+    <section class="panel" aria-labelledby="h-reglas">
+      <div class="panel-head"><h2 id="h-reglas" class="text-base font-bold">Cuándo surten efecto los cambios</h2></div>
+      <div class="panel-body space-y-2 text-sm text-muted">
+        <p>El software del cliente revalida la licencia con el servidor al menos cada {{ ttl_days }} días. Una revocación le llega en esa revalidación.</p>
+        {% if lic.plan == "subscription" %}<p>Al vencer una suscripción, la licencia sigue funcionando {{ grace_days }} días más para dar tiempo al pago.</p>{% endif %}
+      </div>
+    </section>
+  </aside>
+</div>
+{% endblock %}

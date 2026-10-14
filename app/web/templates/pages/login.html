@@ -1,0 +1,25 @@
+{% extends "layouts/auth.html" %}
+{% from "partials/ui.html" import icon %}
+{% block title %}Iniciar sesión{% endblock %}
+
+{% block content %}
+<h1 class="text-3xl font-bold tracking-tight">Iniciar sesión</h1>
+<p class="mt-1.5 text-muted">Entra con tu cuenta del panel.</p>
+
+{% if error %}
+<div class="notice notice-error mt-6" role="alert">{{ icon("alert", 20) }}<p>{{ error }}</p></div>
+{% endif %}
+
+<form method="post" action="/admin/login" class="mt-6 space-y-5">
+  <input type="hidden" name="next" value="{{ next }}">
+  <div>
+    <label class="label" for="username">Usuario</label>
+    <input class="field" id="username" name="username" value="{{ username or '' }}" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus>
+  </div>
+  <div>
+    <label class="label" for="password">Contraseña</label>
+    <input class="field" id="password" name="password" type="password" autocomplete="current-password" required>
+  </div>
+  <button class="btn btn-primary w-full" type="submit">Iniciar sesión</button>
+</form>
+{% endblock %}

@@ -1,0 +1,17 @@
+{
+  "name": "license-service-frontend",
+  "private": true,
+  "description": "Fuentes del CSS del panel (Tailwind). El CSS compilado se guarda en app/web/static/css/app.css, así que para ejecutar el servicio NO hace falta Node.",
+  "scripts": {
+    "fonts": "node tools/copy-fonts.mjs",
+    "css": "tailwindcss -i src/input.css -o ../app/web/static/css/app.css --minify",
+    "css:watch": "tailwindcss -i src/input.css -o ../app/web/static/css/app.css --watch",
+    "build": "npm run fonts && npm run css"
+  },
+  "devDependencies": {
+    "@fontsource-variable/atkinson-hyperlegible-mono": "^5.3.0",
+    "@fontsource-variable/atkinson-hyperlegible-next": "^5.3.0",
+    "@tailwindcss/cli": "^4.3.3",
+    "tailwindcss": "^4.3.3"
+  }
+}

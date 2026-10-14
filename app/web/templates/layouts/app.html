@@ -1,0 +1,58 @@
+{% extends "layouts/base.html" %}
+{% from "partials/ui.html" import icon, mark, csrf, render_flashes %}
+
+{% macro nav_link(href, label, active) -%}
+<li><a class="nav-link md:py-[1.1rem]" href="{{ href }}"{% if active %} aria-current="page"{% endif %}>{{ label }}</a></li>
+{%- endmacro %}
+
+{% block body %}
+<a class="skip" href="#main">Saltar al contenido</a>
+
+<header class="bar">
+  <div class="guilloche absolute inset-0 -z-10 opacity-[.13]" aria-hidden="true"></div>
+  <div class="mx-auto flex max-w-6xl flex-wrap items-center gap-x-5 gap-y-1 px-4 pt-2.5 sm:px-6 md:flex-nowrap md:pt-0">
+    <a href="/admin" class="order-1 flex items-center gap-2.5 py-1 text-lg font-bold tracking-tight text-on-bar no-underline">
+      {{ mark(28) }}<span>Licencias</span>
+    </a>
+
+    <nav aria-label="Principal" class="order-3 -mx-1 w-full overflow-x-auto md:order-2 md:mx-0 md:w-auto md:flex-1 md:overflow-visible">
+      <ul class="flex items-end">
+        {{ nav_link("/admin", "Resumen", path == "/admin") }}
+        {% if can("licenses:read") %}{{ nav_link("/admin/licenses", "Licencias", path.startswith("/admin/licenses")) }}{% endif %}
+        {% if can("audit:read") %}{{ nav_link("/admin/audit", "Bitácora", path.startswith("/admin/audit")) }}{% endif %}
+        {% if can("users:manage") %}{{ nav_link("/admin/users", "Usuarios", path.startswith("/admin/users")) }}{% endif %}
+      </ul>
+    </nav>
+
+    {% if can("licenses:read") %}
+    <form action="/admin/licenses" method="get" role="search" class="relative order-4 w-full pb-3 md:order-3 md:w-64 md:pb-0">
+      <label for="bar-search" class="sr-only">Buscar licencias</label>
+      <span class="pointer-events-none absolute left-3 top-[0.62rem] opacity-80 md:top-1/2 md:-translate-y-1/2">{{ icon("search", 16) }}</span>
+      <input id="bar-search" class="bar-search" type="search" name="q" placeholder="Buscar cliente, producto o ID" autocomplete="off">
+    </form>
+    {% endif %}
+
+    <details class="menu relative order-2 ml-auto md:order-4 md:ml-0">
+      <summary class="flex items-center gap-2 rounded-md px-1.5 py-1.5 text-on-bar hover:bg-white/10" aria-label="Menú de {{ user.username }}">
+        <span class="grid size-8 place-items-center rounded-full bg-white/15 text-sm font-bold uppercase" aria-hidden="true">{{ user.username[:1] }}</span>
+        <span class="hidden text-sm font-semibold sm:block">{{ user.username }}</span>
+        {{ icon("chevron-down", 16) }}
+      </summary>
+      <div class="menu-panel">
+        <p class="px-3 pb-2 pt-1.5 text-sm"><span class="block font-bold">{{ user.username }}</span><span class="text-muted">{{ user.role | role_label }}</span></p>
+        <hr class="my-1 border-line">
+        <a class="menu-item" href="/admin/account">{{ icon("user", 18) }}Mi cuenta</a>
+        <form method="post" action="/admin/logout">
+          {{ csrf(csrf_token) }}
+          <button class="menu-item" type="submit">{{ icon("log-out", 18) }}Cerrar sesión</button>
+        </form>
+      </div>
+    </details>
+  </div>
+</header>
+
+<main id="main" class="mx-auto max-w-6xl px-4 pb-16 pt-8 sm:px-6">
+  {% if flashes %}<div class="mb-6 space-y-3">{{ render_flashes(flashes) }}</div>{% endif %}
+  {% block content %}{% endblock %}
+</main>
+{% endblock %}

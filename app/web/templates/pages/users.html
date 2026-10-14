@@ -1,0 +1,91 @@
+{% extends "layouts/app.html" %}
+{% from "partials/ui.html" import icon, glyph, when, csrf, page_head %}
+{% block title %}Usuarios{% endblock %}
+
+{% block content %}
+{{ page_head("Usuarios", "Quién puede entrar a este panel y qué puede hacer.") }}
+
+<div class="panel mt-6 overflow-hidden">
+  <div class="table-wrap">
+    <table class="tbl">
+      <thead><tr><th scope="col">Usuario</th><th scope="col">Rol</th><th scope="col">Estado</th><th scope="col" class="hidden md:table-cell">Último acceso</th><th scope="col"><span class="sr-only">Acciones</span></th></tr></thead>
+      <tbody>
+        {% for u in users %}
+        {% set me = u.id == user.id %}
+        <tr class="{{ '' if u.is_active else 'text-muted' }}">
+          <td>
+            <span class="font-semibold">{{ u.username }}</span>{% if me %} <span class="text-sm text-muted">(tú)</span>{% endif %}
+            {% if u.must_change_password %}<span class="block text-sm text-muted">Debe cambiar su contraseña</span>{% endif %}
+          </td>
+          <td>
+            {% if me %}{{ u.role | role_label }}{% else %}
+            <form method="post" action="/admin/users/{{ u.id }}/role" class="flex items-center gap-2">
+              {{ csrf(csrf_token) }}
+              <label class="sr-only" for="role-{{ u.id }}">Rol de {{ u.username }}</label>
+              <select class="field w-auto py-1.5 text-sm" id="role-{{ u.id }}" name="role">{% for r in ROLES %}<option value="{{ r }}"{{ " selected" if r == u.role }}>{{ ROLE_LABELS[r] }}</option>{% endfor %}</select>
+              <button class="btn btn-secondary btn-sm" type="submit">Cambiar</button>
+            </form>
+            {% endif %}
+          </td>
+          <td>
+            {% if not u.is_active %}<span class="badge st-expired">{{ glyph("expired") }}Desactivado</span>
+            {% elif u.locked_until and u.locked_until > utcnow() %}<span class="badge st-grace">{{ glyph("grace") }}Bloqueado</span>
+            {% else %}<span class="badge st-active">{{ glyph("active") }}Activo</span>{% endif %}
+          </td>
+          <td class="hidden whitespace-nowrap text-sm md:table-cell">{{ when(u.last_login_at) }}</td>
+          <td>
+            {% if not me %}
+            <div class="flex flex-wrap justify-end gap-2">
+              <form method="post" action="/admin/users/{{ u.id }}/reset-password" data-confirm="Se generará una contraseña temporal para {{ u.username }} y se cerrarán sus sesiones. ¿Continuar?">
+                {{ csrf(csrf_token) }}<button class="btn btn-secondary btn-sm" type="submit">Restablecer contraseña</button>
+              </form>
+              <form method="post" action="/admin/users/{{ u.id }}/active"{% if u.is_active %} data-confirm="¿Desactivar a {{ u.username }}? Se cerrarán sus sesiones."{% endif %}>
+                {{ csrf(csrf_token) }}<input type="hidden" name="active" value="{{ 'false' if u.is_active else 'true' }}">
+                <button class="btn {{ 'btn-danger' if u.is_active else 'btn-secondary' }} btn-sm" type="submit">{{ "Desactivar" if u.is_active else "Activar" }}</button>
+              </form>
+            </div>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="mt-8 grid gap-8 lg:grid-cols-[3fr_2fr]">
+  <section class="panel" aria-labelledby="h-nuevo">
+    <div class="panel-head"><h2 id="h-nuevo" class="text-xl font-bold">Nuevo usuario</h2></div>
+    <form method="post" action="/admin/users" class="panel-body space-y-5">
+      {{ csrf(csrf_token) }}
+      {% if error %}<div class="notice notice-error" role="alert">{{ icon("alert", 20) }}<p>{{ error }}</p></div>{% endif %}
+      <div class="grid gap-5 sm:grid-cols-2">
+        <div>
+          <label class="label" for="username">Usuario</label>
+          <input class="field" id="username" name="username" value="{{ form.username }}" autocomplete="off" autocapitalize="none" spellcheck="false" required>
+          <p class="hint">De 3 a 64 caracteres: letras, números, punto, guion.</p>
+        </div>
+        <div>
+          <label class="label" for="role">Rol</label>
+          <select class="field" id="role" name="role">{% for r in ROLES %}<option value="{{ r }}"{{ " selected" if r == form.role }}>{{ ROLE_LABELS[r] }}</option>{% endfor %}</select>
+        </div>
+      </div>
+      <div>
+        <label class="label" for="password">Contraseña temporal <span class="font-normal text-muted">(opcional)</span></label>
+        <input class="field sm:max-w-sm" id="password" name="password" type="password" autocomplete="new-password">
+        <p class="hint">Déjala vacía y se genera una; la verás una sola vez. La persona deberá cambiarla al entrar.</p>
+      </div>
+      <button class="btn btn-primary" type="submit">{{ icon("plus", 18) }}Crear usuario</button>
+    </form>
+  </section>
+
+  <section aria-labelledby="h-roles">
+    <h2 id="h-roles" class="mb-3 text-xl font-bold">Qué puede hacer cada rol</h2>
+    <dl class="panel divide-y divide-line">
+      <div class="px-5 py-3.5"><dt class="font-bold">Lectura</dt><dd class="text-sm text-muted">Consulta licencias, instalaciones y la bitácora.</dd></div>
+      <div class="px-5 py-3.5"><dt class="font-bold">Operador</dt><dd class="text-sm text-muted">Además crea licencias, las renueva, revoca y libera instalaciones.</dd></div>
+      <div class="px-5 py-3.5"><dt class="font-bold">Administrador</dt><dd class="text-sm text-muted">Además gestiona los usuarios del panel.</dd></div>
+    </dl>
+  </section>
+</div>
+{% endblock %}

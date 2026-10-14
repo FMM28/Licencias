@@ -1,0 +1,17 @@
+{% extends "layouts/app.html" if user else "layouts/auth.html" %}
+{% from "partials/ui.html" import icon %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="{{ 'mx-auto max-w-lg py-10' if user }}">
+  <h1 class="text-3xl font-bold tracking-tight">{{ title }}</h1>
+  <p class="mt-2 text-lg text-muted">{{ message }}</p>
+  <div class="mt-6 flex flex-wrap gap-3">
+    {% if user %}
+    <a class="btn btn-primary" href="/admin">Ir al resumen</a>
+    {% else %}
+    <a class="btn btn-primary" href="/admin/login">Iniciar sesión</a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,56 @@
+{% extends "layouts/app.html" %}
+{% from "partials/ui.html" import glyph, when, pagination, page_head, empty %}
+{% block title %}Bitácora{% endblock %}
+
+{% block content %}
+{{ page_head("Bitácora", total ~ (" evento" if total == 1 else " eventos")) }}
+
+<form method="get" action="/admin/audit" class="panel mt-6 grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-[1fr_15rem_12rem_auto] lg:items-end">
+  <div>
+    <label class="label" for="license">Licencia</label>
+    <input class="field mono" id="license" name="license" value="{{ license }}" placeholder="lic_…" spellcheck="false" autocomplete="off">
+  </div>
+  <div>
+    <label class="label" for="event">Evento</label>
+    <select class="field" id="event" name="event">
+      <option value="">Todos</option>
+      {% for ev in events %}<option value="{{ ev }}"{{ " selected" if ev == event }}>{{ ev | event_label }}</option>{% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="label" for="actor">Quién</label>
+    <input class="field" id="actor" name="actor" value="{{ actor }}" placeholder="usuario" spellcheck="false" autocomplete="off">
+  </div>
+  <div class="flex gap-2 sm:col-span-2 lg:col-span-1">
+    <button class="btn btn-primary" type="submit">Filtrar</button>
+    {% if license or event or actor %}<a class="btn btn-secondary" href="/admin/audit">Quitar filtros</a>{% endif %}
+  </div>
+</form>
+
+<div class="panel mt-4 overflow-hidden">
+  {% if rows %}
+  <div class="table-wrap">
+    <table class="tbl">
+      <thead><tr><th scope="col">Cuándo</th><th scope="col">Evento</th><th scope="col" class="hidden md:table-cell">Licencia</th><th scope="col" class="hidden lg:table-cell">Detalle</th><th scope="col" class="hidden sm:table-cell">Quién</th><th scope="col" class="hidden lg:table-cell">IP</th></tr></thead>
+      <tbody>
+        {% for e in rows %}
+        {% set tone = e.event | event_tone %}
+        <tr>
+          <td class="whitespace-nowrap text-sm">{{ when(e.ts) }}</td>
+          <td><span class="tone-{{ tone }} flex items-center gap-2 font-semibold"><span class="text-st">{{ glyph(tone) }}</span><span class="text-ink">{{ e.event | event_label }}</span></span></td>
+          <td class="hidden md:table-cell">{% if e.license_id %}<a class="mono text-sm hover:underline" href="/admin/licenses/{{ e.license_id }}">{{ e.license_id }}</a>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+          <td class="hidden max-w-xs break-words text-sm text-muted lg:table-cell">{{ e.detail or "" }}</td>
+          <td class="hidden text-sm sm:table-cell">{{ e.actor or "instalación" }}</td>
+          <td class="mono hidden text-sm lg:table-cell">{{ e.ip or "—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  {% call empty("inbox", "No hay eventos con esos filtros") %}Cambia los filtros o <a class="font-semibold text-link underline" href="/admin/audit">quítalos</a>.{% endcall %}
+  {% endif %}
+</div>
+
+{{ pagination(page, pages, qs) }}
+{% endblock %}

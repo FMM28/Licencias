@@ -1,0 +1,99 @@
+{% extends "layouts/app.html" %}
+{% from "partials/ui.html" import icon, glyph, status_badge, expiry, when, page_head, empty %}
+{% block title %}Resumen{% endblock %}
+
+{% block content %}
+{% set order = ["active", "expiring", "grace", "expired", "revoked"] %}
+{% set plural = {"active": "activas", "expiring": "por vencer", "grace": "en gracia", "expired": "vencidas", "revoked": "revocadas"} %}
+
+{% call page_head("Resumen") %}
+  {% if can("licenses:write") %}<a class="btn btn-primary" href="/admin/licenses/new">{{ icon("plus", 18) }}Nueva licencia</a>{% endif %}
+{% endcall %}
+
+<section class="panel mt-6 p-5 sm:p-6" aria-labelledby="h-estado">
+  <div class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+    <h2 id="h-estado" class="text-xl font-bold">{{ stats.total }} {{ "licencia" if stats.total == 1 else "licencias" }}</h2>
+    <p class="text-muted"><span class="font-bold tabular-nums text-ink">{{ stats.installations }}</span> {{ "instalación activa" if stats.installations == 1 else "instalaciones activas" }}</p>
+  </div>
+
+  {% if stats.total %}
+  {% set ns = namespace(x=0) %}
+  <svg class="mt-4 h-3 w-full overflow-hidden rounded-full" viewBox="0 0 100 4" preserveAspectRatio="none" role="img" aria-label="Distribución de las licencias por estado">
+    <rect width="100" height="4" class="fill-sunken"/>
+    {% for s in order %}{% set w = stats[s] / stats.total * 100 %}{% if w > 0 %}<rect x="{{ ns.x | round(3) }}" width="{{ w | round(3) }}" height="4" class="seg st-{{ s }}"/>{% set ns.x = ns.x + w %}{% endif %}{% endfor %}
+  </svg>
+  <ul class="mt-5 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-5">
+    {% for s in order %}
+    <li class="st-{{ s }}">
+      <a class="stat-link" href="/admin/licenses?status={{ s }}">
+        <span class="flex items-center gap-2 text-st">{{ glyph(s, 13) }}<span class="text-2xl font-bold tabular-nums text-ink">{{ stats[s] }}</span></span>
+        <span class="mt-0.5 block text-sm text-muted">{{ plural[s] }}</span>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  {% call empty("key", "Todavía no hay licencias") %}
+    {% if can("licenses:write") %}Crea la primera para empezar a activar instalaciones.<div class="mt-4"><a class="btn btn-primary" href="/admin/licenses/new">{{ icon("plus", 18) }}Nueva licencia</a></div>{% else %}Cuando se cree alguna, aparecerá aquí.{% endif %}
+  {% endcall %}
+  {% endif %}
+</section>
+
+<div class="mt-8 grid gap-8 lg:grid-cols-[3fr_2fr]">
+  <section aria-labelledby="h-atencion">
+    <h2 id="h-atencion" class="mb-3 text-xl font-bold">Requieren atención</h2>
+    <div class="panel overflow-hidden">
+      {% if attention %}
+      <div class="table-wrap">
+        <table class="tbl">
+          <thead><tr><th scope="col">Cliente</th><th scope="col">Estado</th><th scope="col">Vence</th></tr></thead>
+          <tbody>
+            {% for lic in attention %}
+            <tr class="row-link">
+              <td><a class="tbl-link font-semibold" href="/admin/licenses/{{ lic.id }}">{{ lic.customer }}</a><span class="block text-sm text-muted">{{ lic.product }}</span></td>
+              <td>{{ status_badge(license_status(lic)) }}</td>
+              <td class="whitespace-nowrap">{{ expiry(lic.expires_at) }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="flex items-center gap-3 p-5 text-muted">{{ icon("check", 20, "text-ok") }}Ninguna licencia está por vencer ni en gracia.</p>
+      {% endif %}
+    </div>
+  </section>
+
+  {% if can("audit:read") %}
+  <section aria-labelledby="h-actividad">
+    <div class="mb-3 flex items-baseline justify-between gap-3">
+      <h2 id="h-actividad" class="text-xl font-bold">Actividad reciente</h2>
+      <a class="text-sm font-semibold text-link hover:underline" href="/admin/audit">Ver bitácora</a>
+    </div>
+    <div class="panel">
+      {% if recent %}
+      <ol class="divide-y divide-line">
+        {% for e in recent %}
+        {% set tone = e.event | event_tone %}
+        <li class="flex gap-3 px-4 py-3 tone-{{ tone }}">
+          <span class="mt-1.5 text-st">{{ glyph(tone) }}</span>
+          <div class="min-w-0 flex-1">
+            <p class="font-semibold">{{ e.event | event_label }}</p>
+            {% if e.detail %}<p class="break-words text-sm text-muted">{{ e.detail }}</p>{% endif %}
+            <p class="mt-0.5 flex flex-wrap gap-x-3 text-sm text-muted">
+              {% if e.license_id %}<a class="mono hover:underline" href="/admin/licenses/{{ e.license_id }}">{{ e.license_id }}</a>{% endif %}
+              <span>{{ "por " ~ e.actor if e.actor else "desde una instalación" }}</span>
+              {{ when(e.ts) }}
+            </p>
+          </div>
+        </li>
+        {% endfor %}
+      </ol>
+      {% else %}
+      <p class="p-5 text-muted">Aún no hay actividad.</p>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,9 @@
+keys/private.key
+keys/public.key
+*.db
+.env
+.venv
+__pycache__/
+.pytest_cache/
+node_modules/
+*.egg-info/

@@ -1,0 +1,78 @@
+{% extends "layouts/app.html" %}
+{% from "partials/ui.html" import icon, csrf, page_head %}
+{% block title %}Nueva licencia{% endblock %}
+
+{% block content %}
+<nav aria-label="Ruta" class="text-sm">
+  <a class="text-link hover:underline" href="/admin/licenses">Licencias</a><span class="mx-1.5 text-faint" aria-hidden="true">/</span><span class="text-muted">Nueva</span>
+</nav>
+<div class="mt-3">{{ page_head("Nueva licencia", "La clave se muestra una sola vez, al crearla.") }}</div>
+
+<form method="post" action="/admin/licenses" class="panel mt-6 max-w-3xl">
+  {{ csrf(csrf_token) }}
+  <div class="space-y-6 p-5 sm:p-6">
+    {% if error %}<div class="notice notice-error" role="alert">{{ icon("alert", 20) }}<p>{{ error }}</p></div>{% endif %}
+
+    <div class="grid gap-5 sm:grid-cols-2">
+      <div>
+        <label class="label" for="customer">Cliente</label>
+        <input class="field" id="customer" name="customer" value="{{ form.customer }}" maxlength="200" required autofocus>
+      </div>
+      <div>
+        <label class="label" for="email">Correo del cliente <span class="font-normal text-muted">(opcional)</span></label>
+        <input class="field" id="email" name="email" type="email" value="{{ form.email }}" maxlength="200" autocomplete="off">
+      </div>
+    </div>
+
+    <div class="grid gap-5 sm:grid-cols-2">
+      <div>
+        <label class="label" for="product">Producto</label>
+        <input class="field" id="product" name="product" value="{{ form.product }}" maxlength="64" list="products" pattern="[A-Za-z0-9_.\-]{1,64}" required autocomplete="off" spellcheck="false">
+        <datalist id="products">{% for p in products %}<option value="{{ p }}">{% endfor %}</datalist>
+        <p class="hint">Debe coincidir con el producto que configura tu aplicación (por ejemplo <span class="mono">mi-app</span>).</p>
+      </div>
+      <div>
+        <label class="label" for="max_activations">Instalaciones permitidas</label>
+        <input class="field sm:max-w-32" id="max_activations" name="max_activations" type="number" min="1" max="1000" value="{{ form.max_activations }}" required inputmode="numeric">
+        <p class="hint">Cuántos servidores pueden usarla a la vez.</p>
+      </div>
+    </div>
+
+    <fieldset>
+      <legend class="label">Plan</legend>
+      <div class="seg-group">
+        <label><input type="radio" name="plan" value="subscription"{{ " checked" if form.plan == "subscription" }}><span class="seg-face">Suscripción</span></label>
+        <label><input type="radio" name="plan" value="perpetual"{{ " checked" if form.plan == "perpetual" }}><span class="seg-face">Pago único</span></label>
+        <label><input type="radio" name="plan" value="trial"{{ " checked" if form.plan == "trial" }}><span class="seg-face">Prueba</span></label>
+      </div>
+      <p class="hint">Suscripción y prueba vencen; la suscripción se renueva a mano y tiene días de gracia. El pago único no vence.</p>
+    </fieldset>
+
+    <div data-when-plan="subscription trial">
+      <label class="label" for="days">Duración en días</label>
+      <div class="flex flex-wrap items-center gap-2">
+        <input class="field w-32" id="days" name="days" type="number" min="1" max="3650" value="{{ form.days }}" inputmode="numeric">
+        <button type="button" class="btn btn-secondary btn-sm" data-fill="#days" data-value="30">30 días</button>
+        <button type="button" class="btn btn-secondary btn-sm" data-fill="#days" data-value="90">90 días</button>
+        <button type="button" class="btn btn-secondary btn-sm" data-fill="#days" data-value="365">1 año</button>
+      </div>
+    </div>
+
+    <div>
+      <label class="label" for="features">Funciones incluidas <span class="font-normal text-muted">(opcional)</span></label>
+      <textarea class="field mono" id="features" name="features" rows="2" spellcheck="false" placeholder="export, api">{{ form.features }}</textarea>
+      <p class="hint">Separadas por comas. Tu aplicación las consulta con <span class="mono">requires_feature("export")</span>.</p>
+    </div>
+
+    <div>
+      <label class="label" for="notes">Notas internas <span class="font-normal text-muted">(opcional)</span></label>
+      <textarea class="field" id="notes" name="notes" rows="3" maxlength="2000" placeholder="Cómo paga, quién es el contacto…">{{ form.notes }}</textarea>
+    </div>
+  </div>
+
+  <div class="flex flex-wrap items-center justify-end gap-3 border-t border-line px-5 py-4 sm:px-6">
+    <a class="btn btn-secondary" href="/admin/licenses">Cancelar</a>
+    <button class="btn btn-primary" type="submit">Crear licencia</button>
+  </div>
+</form>
+{% endblock %}

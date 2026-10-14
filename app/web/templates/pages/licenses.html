@@ -1,0 +1,76 @@
+{% extends "layouts/app.html" %}
+{% from "partials/ui.html" import icon, status_badge, pips, expiry, pagination, page_head, empty %}
+{% block title %}Licencias{% endblock %}
+
+{% block content %}
+{% call page_head("Licencias", total ~ (" licencia" if total == 1 else " licencias")) %}
+  {% if can("licenses:write") %}<a class="btn btn-primary" href="/admin/licenses/new">{{ icon("plus", 18) }}Nueva licencia</a>{% endif %}
+{% endcall %}
+
+<form method="get" action="/admin/licenses" class="panel mt-6 grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-[1fr_11rem_11rem_auto] lg:items-end">
+  <div class="sm:col-span-2 lg:col-span-1">
+    <label class="label" for="q">Buscar</label>
+    <input class="field" id="q" name="q" type="search" value="{{ q }}" placeholder="Cliente, correo, producto o ID">
+  </div>
+  <div>
+    <label class="label" for="status">Estado</label>
+    <select class="field" id="status" name="status">
+      <option value="">Todos</option>
+      {% for s in STATUSES %}<option value="{{ s }}"{{ " selected" if s == status }}>{{ STATUS_LABELS[s] }}</option>{% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="label" for="product">Producto</label>
+    <select class="field" id="product" name="product">
+      <option value="">Todos</option>
+      {% for p in products %}<option value="{{ p }}"{{ " selected" if p == product }}>{{ p }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="flex gap-2 sm:col-span-2 lg:col-span-1">
+    <button class="btn btn-primary" type="submit">Filtrar</button>
+    {% if q or status or product %}<a class="btn btn-secondary" href="/admin/licenses">Quitar filtros</a>{% endif %}
+  </div>
+</form>
+
+<div class="panel mt-4 overflow-hidden">
+  {% if rows %}
+  <div class="table-wrap">
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th scope="col">Cliente</th>
+          <th scope="col" class="hidden md:table-cell">Producto</th>
+          <th scope="col" class="hidden lg:table-cell">Plan</th>
+          <th scope="col">Estado</th>
+          <th scope="col" class="hidden sm:table-cell">Vence</th>
+          <th scope="col" class="hidden md:table-cell">Instalaciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for lic in rows %}
+        <tr class="row-link">
+          <td>
+            <a class="tbl-link font-semibold" href="/admin/licenses/{{ lic.id }}">{{ lic.customer }}</a>
+            <span class="block text-sm text-muted">{{ lic.email or lic.id }}</span>
+          </td>
+          <td class="hidden md:table-cell">{{ lic.product }}</td>
+          <td class="hidden lg:table-cell">{{ lic.plan | plan_label }}</td>
+          <td>{{ status_badge(license_status(lic)) }}</td>
+          <td class="hidden whitespace-nowrap sm:table-cell">{{ expiry(lic.expires_at) }}</td>
+          <td class="hidden md:table-cell">{{ pips(active_installs(lic), lic.max_activations) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% elif q or status or product %}
+  {% call empty("search", "No hay licencias con esos filtros") %}Prueba con otro texto de búsqueda o <a class="font-semibold text-link underline" href="/admin/licenses">quita los filtros</a>.{% endcall %}
+  {% else %}
+  {% call empty("key", "Todavía no hay licencias") %}
+    {% if can("licenses:write") %}Crea la primera para empezar a activar instalaciones.<div class="mt-4"><a class="btn btn-primary" href="/admin/licenses/new">{{ icon("plus", 18) }}Nueva licencia</a></div>{% else %}Cuando se cree alguna, aparecerá aquí.{% endif %}
+  {% endcall %}
+  {% endif %}
+</div>
+
+{{ pagination(page, pages, qs) }}
+{% endblock %}

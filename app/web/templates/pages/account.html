@@ -1,0 +1,66 @@
+{% extends "layouts/app.html" %}
+{% from "partials/ui.html" import icon, when, csrf, page_head %}
+{% block title %}Mi cuenta{% endblock %}
+
+{% block content %}
+{{ page_head("Mi cuenta", user.username ~ " · " ~ (user.role | role_label)) }}
+
+{% if forced %}
+<div class="notice notice-info mt-6" role="status">{{ icon("lock", 20) }}<p><strong>Cambia tu contraseña para continuar.</strong> La que tienes es temporal; hasta que la cambies no podrás usar el resto del panel.</p></div>
+{% endif %}
+
+<div class="mt-6 grid gap-8 lg:grid-cols-[2fr_3fr]">
+  <section class="panel self-start" aria-labelledby="h-pass">
+    <div class="panel-head"><h2 id="h-pass" class="text-xl font-bold">Cambiar contraseña</h2></div>
+    <form method="post" action="/admin/account/password" class="panel-body space-y-5">
+      {{ csrf(csrf_token) }}
+      {% if error %}<div class="notice notice-error" role="alert">{{ icon("alert", 20) }}<p>{{ error }}</p></div>{% endif %}
+      <div>
+        <label class="label" for="current">Contraseña actual</label>
+        <input class="field" id="current" name="current" type="password" autocomplete="current-password" required>
+      </div>
+      <div>
+        <label class="label" for="new">Contraseña nueva</label>
+        <input class="field" id="new" name="new" type="password" autocomplete="new-password" minlength="{{ min_len }}" required>
+        <p class="hint">Mínimo {{ min_len }} caracteres. Una frase larga funciona mejor que símbolos sueltos.</p>
+      </div>
+      <div>
+        <label class="label" for="confirm">Repite la contraseña nueva</label>
+        <input class="field" id="confirm" name="confirm" type="password" autocomplete="new-password" minlength="{{ min_len }}" required>
+      </div>
+      <button class="btn btn-primary" type="submit">Cambiar contraseña</button>
+      <p class="hint">Al cambiarla se cierran tus demás sesiones.</p>
+    </form>
+  </section>
+
+  <section aria-labelledby="h-ses">
+    <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+      <h2 id="h-ses" class="text-xl font-bold">Sesiones abiertas</h2>
+      {% if sessions | length > 1 %}
+      <form method="post" action="/admin/account/sessions/revoke-others" data-confirm="¿Cerrar todas las demás sesiones?">
+        {{ csrf(csrf_token) }}<button class="btn btn-secondary btn-sm" type="submit">Cerrar las demás</button>
+      </form>
+      {% endif %}
+    </div>
+    <div class="panel overflow-hidden">
+      <div class="table-wrap">
+        <table class="tbl">
+          <thead><tr><th scope="col">Dispositivo</th><th scope="col">IP</th><th scope="col">Última actividad</th></tr></thead>
+          <tbody>
+            {% for s in sessions %}
+            <tr>
+              <td>
+                <span class="block max-w-[16rem] truncate" title="{{ s.user_agent or '' }}">{{ s.user_agent or "Desconocido" }}</span>
+                {% if s.id == current_session %}<span class="badge st-active mt-1">Esta sesión</span>{% endif %}
+              </td>
+              <td class="mono text-sm">{{ s.ip or "—" }}</td>
+              <td class="text-sm">{{ when(s.last_seen) }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}

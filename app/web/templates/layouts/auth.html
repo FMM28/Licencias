@@ -1,0 +1,22 @@
+{% extends "layouts/base.html" %}
+{% from "partials/ui.html" import mark %}
+
+{% block body %}
+<div class="grid min-h-dvh lg:grid-cols-[5fr_4fr]">
+  <aside class="auth-art hidden lg:flex lg:flex-col lg:justify-between lg:p-14" aria-hidden="true">
+    <div class="rosette"></div>
+    <div class="flex items-center gap-3 text-xl font-bold tracking-tight">{{ mark(34) }}<span>Licencias</span></div>
+    <div class="max-w-md">
+      <p class="text-4xl font-bold leading-tight tracking-tight">Panel de licencias</p>
+      <p class="mt-4 text-lg opacity-85">Emite, renueva y revoca licencias, y consulta en qué servidores está instalado tu software.</p>
+    </div>
+  </aside>
+
+  <main id="main" class="flex items-center justify-center px-5 py-12 sm:px-10">
+    <div class="w-full max-w-sm">
+      <div class="mb-10 flex items-center gap-2.5 text-lg font-bold tracking-tight text-brand lg:hidden">{{ mark(30) }}<span>Licencias</span></div>
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+</div>
+{% endblock %}
