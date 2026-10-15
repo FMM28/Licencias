@@ -24,7 +24,7 @@ STATUS_LABELS = {"active": "Activa", "expiring": "Por vencer", "grace": "En grac
 PLAN_LABELS = {"perpetual": "Pago único", "subscription": "Suscripción", "trial": "Prueba"}
 EVENT_LABELS = {
     "license_created": "Licencia creada", "activated": "Instalación activada",
-    "activate_denied": "Activación rechazada", "validate_denied": "Validación rechazada",
+    "activate_denied": "Activación rechazada", "activate_failed": "Activación fallida", "validate_denied": "Validación rechazada",
     "deactivated": "Instalación liberada por el cliente", "released": "Activaciones liberadas",
     "revoked": "Licencia revocada", "unrevoked": "Licencia reactivada",
     "extended": "Licencia renovada", "max_activations": "Límite de instalaciones cambiado",
@@ -35,7 +35,7 @@ EVENT_LABELS = {
     "user_enabled": "Usuario activado", "user_disabled": "Usuario desactivado",
     "password_reset": "Contraseña restablecida", "password_changed": "Contraseña cambiada",
 }
-_DANGER = {"activate_denied", "validate_denied", "revoked", "admin_login_failed",
+_DANGER = {"activate_denied", "activate_failed", "validate_denied", "revoked", "admin_login_failed",
            "admin_login_blocked", "user_disabled"}
 _WARN = {"ip_changed", "released", "deactivated", "password_reset"}
 _OK = {"license_created", "activated", "unrevoked", "extended", "admin_login", "user_created",

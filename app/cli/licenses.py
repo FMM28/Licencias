@@ -3,6 +3,7 @@ import sys
 
 from sqlalchemy import select
 
+from app.core.timeutil import utcnow
 from app.cli._common import actor, fmt_date, status_text
 from app.db import new_session
 from app.models import AuditLog
@@ -51,7 +52,7 @@ def cmd_show(args):
     print(f"  features: {', '.join(lic.features) or '-'}   notas: {lic.notes or '-'}")
     print(f"  activaciones ({svc.active_installs(lic)}/{lic.max_activations}):")
     for a in lic.activations:
-        mark = "●" if a.active else "○"
+        mark = "●" if a.is_live(utcnow()) else "○"
         print(f"    {mark} {a.fingerprint[:16]}…  {a.hostname or '-':<20} ip={a.last_ip or '-':<16}"
               f" visto={a.last_seen:%Y-%m-%d %H:%M}")
 

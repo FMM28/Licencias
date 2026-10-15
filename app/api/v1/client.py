@@ -6,7 +6,7 @@ from app.api.deps import client_ip, get_db, limit_client
 from app.core import crypto
 from app.core.config import get_settings
 from app.models import License
-from app.schemas.client import ActivateIn, DeactivateIn, TokenOut, ValidateIn
+from app.schemas.client import AbortIn, ActivateIn, ConfirmIn, DeactivateIn, TokenOut, ValidateIn
 from app.core.timeutil import to_ts
 from app.services import activation
 
@@ -28,8 +28,23 @@ def public_key():
 def activate(body: ActivateIn, request: Request, db: Session = Depends(get_db)):
     lic, token, exp = activation.activate(
         db, key=body.license_key, product=body.product, fingerprint=body.fingerprint,
-        hostname=body.hostname, ip=client_ip(request))
+        hostname=body.hostname, ip=client_ip(request),
+        two_phase=body.two_phase)
     return _token_out(lic, token, exp)
+
+
+@router.post("/activate/confirm")
+def activate_confirm(body: ConfirmIn, request: Request, db: Session = Depends(get_db)):
+    activation.confirm(db, key=body.license_key, fingerprint=body.fingerprint,
+                       ip=client_ip(request))
+    return {"ok": True}
+
+
+@router.post("/activate/abort")
+def activate_abort(body: AbortIn, request: Request, db: Session = Depends(get_db)):
+    activation.abort(db, key=body.license_key, fingerprint=body.fingerprint,
+                     reason=body.reason, ip=client_ip(request))
+    return {"ok": True}
 
 
 @router.post("/validate", response_model=TokenOut)

@@ -31,7 +31,7 @@ def tables(url):
 def test_upgrade_creates_everything_and_matches_models(url):
     migrate.upgrade(url)
     assert tables(url) == EXPECTED_TABLES
-    assert migrate.current_revision(url) == migrate.head_revision() == "0002"
+    assert migrate.current_revision(url) == migrate.head_revision() == "0003"
     migrate.check(url)    # lanza si los modelos tienen cambios sin migración
 
 
@@ -69,6 +69,25 @@ def test_data_survives_0002_upgrade(url):
         assert conn.execute(text("SELECT customer FROM licenses")).scalar() == "Cliente viejo"
         assert conn.execute(text("SELECT actor FROM audit_log")).scalar() is None
     engine.dispose()
+
+
+def test_0003_marks_existing_active_installs_as_confirmed(url):
+    migrate.upgrade(url, "0002")
+    engine = create_engine(normalize_url(url))
+    with engine.begin() as conn:
+        conn.execute(text(
+            "INSERT INTO licenses (id, key_hash, product, customer, plan, features, "
+            "max_activations, revoked, created_at) VALUES ('lic_old', 'h', 'p', 'C', "
+            "'perpetual', '[]', 2, 0, '2026-01-01 00:00:00')"))
+        for fp, active in (("a", 1), ("b", 0)):
+            conn.execute(text(
+                "INSERT INTO activations (license_id, fingerprint, active, created_at, last_seen) "
+                f"VALUES ('lic_old', '{fp}', {active}, '2026-01-02 00:00:00', '2026-01-03 00:00:00')"))
+    migrate.upgrade(url)
+    with engine.connect() as conn:
+        rows = dict(conn.execute(text("SELECT fingerprint, confirmed_at FROM activations")).all())
+    engine.dispose()
+    assert rows["a"] is not None and rows["b"] is None
 
 
 def test_tables_are_innodb_utf8mb4_regardless_of_server_defaults(url):

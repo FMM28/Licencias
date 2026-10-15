@@ -61,17 +61,17 @@
             <thead><tr><th scope="col">Equipo</th><th scope="col" class="hidden sm:table-cell">IP</th><th scope="col">Última conexión</th><th scope="col">Estado</th>{% if writable %}<th scope="col"><span class="sr-only">Acciones</span></th>{% endif %}</tr></thead>
             <tbody>
               {% for a in activations %}
-              <tr class="{{ '' if a.active else 'text-muted' }}">
+              <tr class="{{ '' if a.is_live(now) else 'text-muted' }}">
                 <td>
                   <span class="font-semibold">{{ a.hostname or "Sin nombre" }}</span>
                   <span class="mono block text-xs text-muted" title="{{ a.fingerprint }}">{{ a.fingerprint | fp_short }}</span>
                 </td>
                 <td class="mono hidden text-sm sm:table-cell">{{ a.last_ip or "—" }}</td>
                 <td class="text-sm">{{ when(a.last_seen) }}</td>
-                <td>{% if a.active %}<span class="badge st-active">{{ glyph("active") }}Activa</span>{% else %}<span class="badge st-expired">{{ glyph("expired") }}Liberada</span>{% endif %}</td>
+                <td>{% if a.is_pending(now) %}<span class="badge st-grace">{{ glyph("grace") }}Pendiente</span>{% elif a.is_live(now) %}<span class="badge st-active">{{ glyph("active") }}Activa</span>{% elif a.active %}<span class="badge st-expired">{{ glyph("expired") }}Sin confirmar</span>{% else %}<span class="badge st-expired">{{ glyph("expired") }}Liberada</span>{% endif %}</td>
                 {% if writable %}
                 <td class="text-right">
-                  {% if a.active %}
+                  {% if a.is_live(now) %}
                   <form method="post" action="/admin/licenses/{{ lic.id }}/release" data-confirm="¿Liberar esta instalación? El cliente podrá activar otro servidor.">
                     {{ csrf(csrf_token) }}<input type="hidden" name="fingerprint" value="{{ a.fingerprint }}">
                     <button class="btn btn-secondary btn-sm" type="submit">Liberar</button>

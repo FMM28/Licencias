@@ -10,6 +10,8 @@ Las bases deben existir y NO deben ser las de producción: se vacían en cada pr
 migraciones es distinta porque esas pruebas suben y bajan el esquema entero.
 """
 import os
+
+os.environ["LICENSE_SKIP_DOTENV"] = "1"  # las pruebas no deben leer el .env de desarrollo
 import time
 from datetime import datetime, timezone
 from types import SimpleNamespace

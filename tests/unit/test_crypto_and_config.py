@@ -60,3 +60,20 @@ def test_settings_defaults_are_safe(monkeypatch):
         monkeypatch.delenv(name, raising=False)
     s = get_settings()
     assert s.cookie_secure is True and s.docs_enabled is False and s.auto_migrate is False
+
+
+def test_env_file_is_loaded_without_overriding_real_environment(tmp_path, monkeypatch):
+    from app.core import config
+    envfile = tmp_path / ".env"
+    envfile.write_text("LICENSE_TEST_A=desde_archivo   # comentario\nLICENSE_TEST_B=archivo\n")
+    monkeypatch.delenv("LICENSE_SKIP_DOTENV")
+    monkeypatch.setenv("LICENSE_ENV_FILE", str(envfile))
+    monkeypatch.setenv("LICENSE_TEST_B", "entorno")
+    monkeypatch.delenv("LICENSE_TEST_A", raising=False)
+    try:
+        config._load_env_file()
+        import os
+        assert os.environ["LICENSE_TEST_A"] == "desde_archivo"
+        assert os.environ["LICENSE_TEST_B"] == "entorno"       # el entorno real manda
+    finally:
+        os.environ.pop("LICENSE_TEST_A", None)

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import AuthContext, get_db, require_perm
 from app.core.config import get_settings
 from app.core.errors import LicenseError, PageNotFound
+from app.core.timeutil import utcnow
 from app.services import audit as audit_service
 from app.services import licenses as license_service
 from app.web import flash
@@ -74,11 +75,12 @@ def license_detail(request: Request, license_id: str, ctx: AuthContext = READ,
     lic = get_license_or_404(db, license_id)
     history = audit_service.list_audit(db, license_id=lic.id, per_page=15)[0] \
         if ctx.can("audit:read") else []
-    activations = sorted(lic.activations, key=lambda a: (not a.active, -a.last_seen.timestamp()))
+    now = utcnow()
+    activations = sorted(lic.activations, key=lambda a: (not a.is_live(now), -a.last_seen.timestamp()))
     settings = get_settings()
     return render(request, "license_detail.html", ctx, db, lic=lic,
                   status=license_service.license_status(lic), activations=activations,
-                  active=sum(1 for a in activations if a.active), history=history,
+                  active=sum(1 for a in activations if a.is_live(now)), history=history, now=now,
                   grace_days=settings.expiry_grace_days, ttl_days=settings.token_ttl_days)
 
 

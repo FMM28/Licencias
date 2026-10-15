@@ -1,6 +1,6 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, and_, or_, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import MYSQL_TABLE_ARGS, Base
@@ -29,6 +29,12 @@ class License(Base):
     )
 
 
+# Una activación recién emitida está "pendiente" hasta que el SDK confirma que pudo verificar
+# el token. Mientras tanto ocupa un cupo (así el límite no se salta con peticiones en carrera),
+# pero solo durante este tiempo: si nadie la confirma, deja de contar.
+PENDING_TTL = timedelta(minutes=5)
+
+
 class Activation(Base):
     __tablename__ = "activations"
     __table_args__ = (UniqueConstraint("license_id", "fingerprint",
@@ -44,5 +50,21 @@ class Activation(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime)
     last_seen: Mapped[datetime] = mapped_column(DateTime)
+    # None = pendiente de confirmar (o ya liberada). Se fija cuando el SDK confirma.
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     license: Mapped["License"] = relationship(back_populates="activations")
+
+    @staticmethod
+    def live_clause(now: datetime):
+        """SQL: activa y (confirmada o pendiente todavía vigente)."""
+        return and_(Activation.active.is_(True),
+                    or_(Activation.confirmed_at.is_not(None),
+                        Activation.last_seen > now - PENDING_TTL))
+
+    def is_live(self, now: datetime) -> bool:
+        return self.active and (self.confirmed_at is not None
+                                or self.last_seen > now - PENDING_TTL)
+
+    def is_pending(self, now: datetime) -> bool:
+        return self.active and self.confirmed_at is None and self.last_seen > now - PENDING_TTL

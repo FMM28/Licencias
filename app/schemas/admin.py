@@ -66,7 +66,8 @@ class ActivationOut(BaseModel):
     fingerprint: str
     hostname: str | None
     last_ip: str | None
-    active: bool
+    active: bool                     # ocupa un cupo ahora mismo
+    state: Literal["active", "pending", "unconfirmed", "released"]
     last_seen: datetime
 
     model_config = {"from_attributes": True}

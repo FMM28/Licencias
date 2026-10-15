@@ -123,12 +123,25 @@ class LicenseClient:
         return data
 
     # ------------------------------------------------------------ verificación offline
-    def _verify(self, token: str) -> dict:
+    def _verify(self, token: str, fresh: bool = False) -> dict:
+        """`fresh=True`: el token acaba de llegar del servidor; si la firma no cuadra, lo más
+        probable es que la clave pública configurada sea otra (no que alguien lo editara)."""
+        try:
+            verify_key = VerifyKey(_b64d(self.public_key))
+        except Exception:  # base64 roto o longitud distinta de 32 bytes
+            raise LicenseError("invalid_public_key",
+                               "La clave pública configurada no tiene un formato válido")
         try:
             body, sig = token.split(".")
-            VerifyKey(_b64d(self.public_key)).verify(body.encode(), _b64d(sig))
+            verify_key.verify(body.encode(), _b64d(sig))
             payload = json.loads(_b64d(body))
-        except (ValueError, BadSignatureError):
+        except BadSignatureError:
+            if not fresh:
+                raise LicenseError("invalid_token", "El token de licencia no es válido")
+            raise LicenseError("bad_signature",
+                               "La firma del token no coincide con la clave pública configurada "
+                               "(¿clave pública equivocada o servidor de licencias distinto?)")
+        except ValueError:
             raise LicenseError("invalid_token", "El token de licencia no es válido")
         if payload.get("product") != self.product:
             raise LicenseError("product_mismatch", "La licencia es de otro producto")
@@ -153,13 +166,31 @@ class LicenseClient:
             raise LicenseError("no_key", "Falta la clave de licencia")
         out = self._post("/v1/activate", {
             "license_key": key, "product": self.product,
-            "fingerprint": self.fingerprint(), "hostname": socket.gethostname()})
-        payload = self._verify(out["token"])
+            "fingerprint": self.fingerprint(), "hostname": socket.gethostname(),
+            "two_phase": True})
+        try:
+            payload = self._verify(out["token"], fresh=True)
+        except LicenseError as exc:
+            # El servidor dejó la activación PENDIENTE. Como no podemos usar el token (clave
+            # pública mal configurada, producto distinto…) avisamos: el servidor la registra
+            # como fallida y libera el cupo.
+            self._abort_quietly(key, exc.code)
+            raise
+        # Token verificado: el servidor la registra como exitosa. Si esto falla, el token no
+        # se guarda (el servidor cerraría la activación pendiente de todos modos).
+        self._post("/v1/activate/confirm", {"license_key": key, "fingerprint": self.fingerprint()})
         data = {"license_key": key, "token": out["token"], "high_water": self.clock()}
         self._save(data)
         self._license_key = key
         self._cache = None
         return payload
+
+    def _abort_quietly(self, key: str, reason: str) -> None:
+        try:
+            self._post("/v1/activate/abort", {"license_key": key, "reason": reason,
+                                              "fingerprint": self.fingerprint()})
+        except (LicenseError, NetworkError):
+            pass  # mejor esfuerzo: si no llega, el servidor cierra la pendiente a los 5 min
 
     def refresh(self) -> dict:
         """Pide un token nuevo al servidor. Si el servidor rechaza la licencia, se borra el token."""
@@ -176,7 +207,7 @@ class LicenseClient:
             self._save(data)
             self._cache = None
             raise
-        payload = self._verify(out["token"])
+        payload = self._verify(out["token"], fresh=True)
         data.update(token=out["token"], license_key=key)
         self._check_clock(data)
         self._save(data)

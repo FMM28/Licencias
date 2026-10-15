@@ -132,12 +132,13 @@ def release_activation(db: Session, license_id: str, fingerprint: str | None = N
 # ---------------------------------------------------------------- estado
 
 def active_installs(lic: License) -> int:
-    return sum(1 for a in lic.activations if a.active)
+    now = utcnow()
+    return sum(1 for a in lic.activations if a.is_live(now))
 
 
 def active_count(db: Session, license_id: str) -> int:
     return db.scalar(select(func.count()).select_from(Activation).where(
-        Activation.license_id == license_id, Activation.active.is_(True))) or 0
+        Activation.license_id == license_id, Activation.live_clause(utcnow()))) or 0
 
 
 def effective_end(lic: License) -> datetime | None:
@@ -231,5 +232,5 @@ def stats(db: Session) -> dict[str, int]:
         out[st] = db.scalar(select(func.count()).select_from(License)
                             .where(_status_clause(st))) or 0
     out["installations"] = db.scalar(select(func.count()).select_from(Activation)
-                                     .where(Activation.active.is_(True))) or 0
+                                     .where(Activation.live_clause(utcnow()))) or 0
     return out

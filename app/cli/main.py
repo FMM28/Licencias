@@ -20,6 +20,8 @@ def main(argv: list[str] | None = None) -> None:
         args.fn(args)
     except LicenseError as exc:
         sys.exit(f"Error: {exc.message}")
+    except ValueError as exc:          # configuración inválida (p. ej. falta LICENSE_DB_URL)
+        sys.exit(f"Error de configuración: {exc}")
 
 
 if __name__ == "__main__":

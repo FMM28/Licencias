@@ -226,8 +226,110 @@ def test_public_key_matches_signing_key(env):
 def test_health_endpoints(env):
     assert env.http.get("/health").json() == {"status": "ok"}
     r = env.http.get("/health/ready")
-    assert r.status_code == 200 and r.json()["schema"] == "0002"
+    assert r.status_code == 200 and r.json()["schema"] == "0003"
 
 
 def test_settings_used_by_tokens(env):
     assert get_settings().token_ttl_days == 7
+
+
+def test_wrong_public_key_is_reported_clearly_and_releases_the_slot(env):
+    from nacl.signing import SigningKey
+
+    from app.core.crypto import b64e
+    from app.models import Activation
+    from sdk.licensing_client import LicenseError
+
+    _, key = env.new_license(max_activations=1)
+    sdk = env.sdk("wrong")
+    sdk.public_key = b64e(bytes(SigningKey.generate().verify_key))   # otra clave, bien formada
+    with pytest.raises(LicenseError) as exc:
+        sdk.activate(key)
+    assert exc.value.code == "bad_signature" and "clave pública" in exc.value.message
+    assert not sdk.storage.exists()                                  # no se guardó nada
+    with env.db() as db:                                             # el cupo quedó libre
+        assert db.query(Activation).filter(Activation.active.is_(True)).count() == 0
+    env.sdk("good").activate(key)                                    # y la licencia sigue usable
+
+
+def test_malformed_public_key_is_reported_clearly(env):
+    from sdk.licensing_client import LicenseError
+
+    _, key = env.new_license()
+    sdk = env.sdk("bad")
+    sdk.public_key = "esto-no-es-una-clave"
+    with pytest.raises(LicenseError) as exc:
+        sdk.activate(key)
+    assert exc.value.code == "invalid_public_key"
+
+
+# ------------------------------------------------------------- activación en dos fases
+
+def events(env, lic_id):
+    from sqlalchemy import select
+
+    from app.models import AuditLog
+    with env.db() as db:
+        return [(e.event, e.detail) for e in db.scalars(
+            select(AuditLog).where(AuditLog.license_id == lic_id).order_by(AuditLog.id))]
+
+
+def installs(env, lic_id):
+    from app.services import licenses as svc
+    with env.db() as db:
+        return svc.active_installs(svc.get_license(db, lic_id))
+
+
+def test_failed_client_verification_is_logged_as_failed_never_as_activated(env):
+    from nacl.signing import SigningKey
+
+    from app.core.crypto import b64e
+    lic_id, key = env.new_license(max_activations=1)
+    sdk = env.sdk("wrong")
+    sdk.public_key = b64e(bytes(SigningKey.generate().verify_key))
+    with pytest.raises(LicenseError):
+        sdk.activate(key)
+    names = [e for e, _ in events(env, lic_id)]
+    assert "activated" not in names
+    assert ("activate_failed", "bad_signature") in events(env, lic_id)
+    assert installs(env, lic_id) == 0
+
+
+def test_successful_activation_is_logged_once_and_counts(env):
+    lic_id, key = env.new_license()
+    env.sdk("ok").activate(key)
+    assert [e for e, _ in events(env, lic_id)].count("activated") == 1
+    assert installs(env, lic_id) == 1
+
+
+def test_pending_activation_holds_the_slot_then_expires_and_is_logged_failed(env):
+    lic_id, key = env.new_license(max_activations=1)
+    body = {"license_key": key, "product": PRODUCT, "fingerprint": "a" * 32, "two_phase": True}
+    assert env.new_http().post("/v1/activate", json=body).status_code == 200
+    assert "activated" not in [e for e, _ in events(env, lic_id)]
+    other = {**body, "fingerprint": "b" * 32}
+    assert env.new_http().post("/v1/activate", json=other).status_code == 409   # cupo reservado
+    env.clock.advance(minutes=6)                                                # nadie confirmó
+    assert installs(env, lic_id) == 0
+    assert env.new_http().post("/v1/activate", json=other).status_code == 200   # cupo libre
+    assert ("activate_failed", "sin_confirmar") in events(env, lic_id)
+    late = env.new_http().post("/v1/activate/confirm",
+                               json={"license_key": key, "fingerprint": "a" * 32})
+    assert late.status_code == 409
+
+
+def test_abort_never_releases_a_confirmed_installation(env):
+    lic_id, key = env.new_license()
+    env.sdk("ok").activate(key)
+    fp = env.sdk("ok").fingerprint()
+    r = env.new_http().post("/v1/activate/abort",
+                            json={"license_key": key, "fingerprint": fp, "reason": "bad_signature"})
+    assert r.status_code == 200 and installs(env, lic_id) == 1
+
+
+def test_legacy_clients_without_two_phase_are_confirmed_immediately(env):
+    lic_id, key = env.new_license()
+    r = env.new_http().post("/v1/activate", json={
+        "license_key": key, "product": PRODUCT, "fingerprint": "c" * 32})
+    assert r.status_code == 200 and installs(env, lic_id) == 1
+    assert [e for e, _ in events(env, lic_id)].count("activated") == 1
